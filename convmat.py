@@ -1,34 +1,43 @@
 import numpy as np
-from scipy.linalg import toeplitz
 
 
 def convolution_matrix(x, N=None, mode='full'):
     """Compute the Convolution Matrix
 
-    This function computes a convolution matrix to perform a
-    computation equivalent to numpy.convolve(x, y)
+    This function computes a convolution matrix that encodes
+    the computation equivalent to ``numpy.convolve(x, y, mode)``
 
     Parameters
     ----------
-    x :
-
-    N :
-
-    mode :
-
+    x : array_like
+        One-dimensional input array
+    N : integer (optional)
+        Size of the array to be convolved. Default is len(x)
+    mode : {'full', 'valid', 'same'}, optional
+        The type of convolution to perform.
+        See ``np.convolve`` for details.
 
     Returns
     -------
-    C :
+    C : ndarray
+        Matrix operator encoding the convolution. The matrix is of shape
+        Nout x N, where Nout depends on ``mode`` and the size of ``x``.
 
     Example
     -------
     >>> x = np.random.rand(10)
     >>> y = np.random.rand(20)
     >>> xy = np.convolve(x, y, mode='full')
-    >>> Cfull = convolution_matrix(x, len(y), mode='full')
-    >>> np.allclose(xy, np.dot(Cfull, y))
+    >>> C = convolution_matrix(x, len(y), mode='full')
+    >>> np.allclose(xy, np.dot(C, y))
     True
+
+    See Also
+    --------
+    numpy.convolve : direct convolution operation
+    scipy.signal.fftconvolve : direct convolution via the
+                               fast Fourier transform
+    scipy.linalg.toeplitz : construct the Toeplitz matrix
     """
     x = np.asarray(x)
     if x.ndim != 1:
@@ -59,6 +68,7 @@ def convolution_matrix(x, N=None, mode='full'):
 # Tests:
 import pytest
 from numpy.testing import assert_allclose
+
 
 @pytest.mark.parametrize('M', [10, 15, 20, 25])
 @pytest.mark.parametrize('N', [10, 15, 20, 25])
