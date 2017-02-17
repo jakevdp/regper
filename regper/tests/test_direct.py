@@ -1,5 +1,6 @@
 import numpy as np
-from ..direct import least_squares, least_squares_cost
+from ..utils import least_squares_cost
+from ..direct import least_squares
 
 import pytest
 from numpy.testing import assert_allclose
