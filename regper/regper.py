@@ -18,14 +18,14 @@ BETA = 0.5         # stepsize decrease factor
 MAX_LS_ITER = 100  # maximum backtracking line search iteration
 
 
-def L2_least_squares(A, y, AT=None, lam=0, cg_kwds=None):
+def L2_least_squares(A, y, lam=0, AconjT=None, cg_kwds=None):
     """
     Solve an L2-Regularized Least Squares problem.
     L1_least_squares solves problems of the following form:
 
         minimize ||A*x-y||^2 + lambda*||x||^2,
 
-    where A and y are problem data and x is variable (described below).
+    where A and y are inputs and x is unknown
 
     Parameters
     ----------
@@ -37,36 +37,38 @@ def L2_least_squares(A, y, AT=None, lam=0, cg_kwds=None):
 
     """
     y = np.asarray(y)
-    if sparse.issparse(A):
-        AT = A.conj().T if AT is None else AT
-        return spsolve(AT @ A + lam * sparse.identity(A.shape[1]),
-                       AT @ y)
-    elif isinstance(A, LinearOperator):
-        if AT is None:
-            raise ValueError("Must specify AT when A is a LinearOperator")
+
+    if isinstance(A, LinearOperator):
+        if AconjT is None:
+            raise ValueError("Must specify AconjT when A is a LinearOperator")
         M = LinearOperator(shape=(A.shape[1], A.shape[1]), dtype=A.dtype,
-                           matvec=lambda x: AT @ (A @ x) + lam * x)
+                           matvec=lambda x: AconjT @ (A @ x) + lam * x)
         cg_kwds = dict(**(cg_kwds or {}))
         if 'tol' not in cg_kwds:
             cg_kwds['tol'] = 1E-8
-        x, info = cg(M, AT @ y, **cg_kwds)
+        x, info = cg(M, AconjT @ y, **cg_kwds)
         return x
+    elif sparse.issparse(A):
+        AconjT = A.conj().T if AconjT is None else AconjT
+        return spsolve(AconjT @ A + lam * sparse.identity(A.shape[1]),
+                       AconjT @ y)
     else:
         A = np.asarray(A)
-        AT = A.conj().T if AT is None else AT
-        return np.linalg.solve(AT @ A + lam * np.eye(A.shape[0]),
-                               AT @ y)
+        AconjT = A.conj().T if AconjT is None else AconjT
+        return np.linalg.solve(AconjT @ A + lam * np.eye(A.shape[0]),
+                               AconjT @ y)
 
 
-def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
-                     eta=1e-3, pcgmaxi=5000, quiet=True, full_output=False):
+def L1_least_squares(A, y, lam, x0=None, AconjT=None, m=None, n=None,
+                     tar_gap=1e-3, eta=1e-3, pcgmaxi=5000,
+                     quiet=True, full_output=False):
     """
     Solve an L1-Regularized Least Squares problem.
     L1_least_squares solves problems of the following form:
 
         minimize ||A*x-y||^2 + lambda*sum|x_i|,
 
-    where A and y are problem data and x is variable (described below).
+    where A and y are inputs and x is unknown.
 
     Parameters
     ----------
@@ -79,7 +81,7 @@ def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
         regularization parameter (must be positive)
     x0: ndarray
         initial guess of the solution
-    AT : nxm matrix, optional
+    AconjT : nxm matrix, optional
         transpose of A.
     tar_gap : float, optional
         relative target duality gap (default: 1e-3).
@@ -116,16 +118,30 @@ def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
       (2007), IEEE Journal on Selected Topics in Signal Processing,
       1(4):606-617.
     """
+    # Note: A can be array_like, or sparse, or a LinearOperator
+    if not hasattr(A, 'shape'):
+        A = np.asarray(A)
+
     M, N = A.shape
     dtype = A.dtype
-    AT = A.transpose() if AT is None else AT
+
+    if AconjT is None:
+        AconjT = A.conj().transpose()
+
+    assert AconjT.shape == A.shape[::-1]
+
     if lam <= 0:
         raise ValueError('`lam` must be a positive float')
 
     t0 = min(max(1, 1/lam), 2 * N / 1e-3)
 
-    x = np.zeros(N) if x0 is None else x0.ravel()
-    y = y.ravel()
+    if x0 is None:
+        x = np.zeros(N, dtype=A.dtype)
+    else:
+        x = np.asarray(x0, dtype=A.dtype).ravel()
+
+    y = np.asarray(y).ravel()
+
     status, history = 'Failed', []
 
     u = np.ones(N)
@@ -140,11 +156,11 @@ def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
 
     ntiter, lsiter = 0, 0
     normg = 0
-    dxu = np.zeros(2 * N)
+    dxu = np.zeros(2 * N, dtype=A.dtype)
 
     # This can be slow, so instead, we use a cruder preconditioning
-    #diagxtx = diag(AT.dot(A))
-    diagxtx = 2 * np.ones(N)
+    #diagxtx = diag(AconjT.dot(A))
+    diagxtx = 2 * np.ones(N, dtype=A.dtype)
 
     if not quiet:
         print('\nSolving a problem of size (M={}, N={})'
@@ -161,11 +177,11 @@ def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
         # Calculating the duality gap
         nu = 2 * z
 
-        maxAnu = norm(AT.dot(nu), np.inf)
+        maxAnu = norm(AconjT.dot(nu), np.inf)
         if maxAnu > lam:
             nu = nu * lam / maxAnu
 
-        pobj = z.dot(z) + lam*norm(x, 1)
+        pobj = z.dot(z) + lam * norm(x, 1)
         dobj = max(-0.25 * nu.dot(nu) - nu.dot(y), dobj)
         gap = pobj - dobj
 
@@ -197,23 +213,23 @@ def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
         d1, d2 = (q1 ** 2 + q2 ** 2) / t, (q1 ** 2 - q2 ** 2) / t
 
         # calculate the gradient
-        gradphi = np.hstack([AT.dot(2 * z) - (q1 - q2) / t,
+        gradphi = np.hstack([AconjT.dot(2 * z) - (q1 - q2) / t,
                              lam * np.ones(n) - (q1 + q2) / t])
 
         # calculate vectors to be used in the preconditioner
         prb = diagxtx + d1
-        prs = prb.dot(d1) - (d2 ** 2)
+        prs = prb.dot(d1) - d2 ** 2
 
         # set pcg tolerange (relative)
         normg = norm(gradphi)
-        pcgtol = min(1e-1, eta * gap / min(1, normg))
+        pcgtol = min(0.1, eta * gap / min(1, normg))
 
         p1, p2, p3 = d1 / prs, d2 / prs, prb / prs
         dxu_old = dxu
 
-        [dxu, info] = cg(AXfunc(A, AT, d1, d2, p1, p2, p3),
+        [dxu, info] = cg(AXfunc(A, AconjT, d1, d2, p1, p2, p3),
                          -gradphi, x0=dxu, tol=pcgtol, maxiter=pcgmaxi,
-                         M=MXfunc(p1, p2, p3))
+                         M=MXfunc(A, AconjT, d1, d2, p1, p2, p3))
 
         # This is to increase the tolerance of the underlying PCG if
         # it converges to the same solution without offering an increase
@@ -275,27 +291,26 @@ def L1_least_squares(A, y, lam, x0=None, AT=None, m=None, n=None, tar_gap=1e-3,
         return x
 
 
-def AXfunc(A, AT, d1, d2, p1, p2, p3):
+def AXfunc(A, AconjT, d1, d2, p1, p2, p3):
     """
     Returns a linear operator which computes A * x for PCG.
         y = hessphi * [x1; x2],
         where hessphi = [ A'*A*2+D1, D2;
                           D2,        D1]
     """
-
     def matvec(vec):
         N = vec.shape[0] // 2
         x1 = vec[:N]
         x2 = vec[N:]
 
-        return np.hstack([AT.dot(A.dot(x1) * 2) + d1 * x1 + d2 * x2,
+        return np.hstack([AconjT.dot(A.dot(x1) * 2) + d1 * x1 + d2 * x2,
                           d2 * x1 + d1 * x2])
 
     N = 2 * d1.shape[0]
-    return LinearOperator((N, N), matvec=matvec)
+    return LinearOperator((N, N), matvec=matvec, dtype=AconjT.dtype)
 
 
-def MXfunc(p1, p2, p3):
+def MXfunc(A, AconjT, d1, d2, p1, p2, p3):
     """
     Compute P^{-1}X (PCG)
     y = P^{-1}*x
@@ -310,4 +325,4 @@ def MXfunc(p1, p2, p3):
                                -p2 * x1 + p3 * x2])
 
     N = 2 * p1.shape[0]
-    return LinearOperator((N, N), matvec=matvec)
+    return LinearOperator((N, N), matvec=matvec, dtype=AconjT.dtype)

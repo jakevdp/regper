@@ -1,9 +1,9 @@
+from __future__ import division
 import numpy as np
 
 
 def convolution_matrix(x, N=None, mode='full'):
     """Compute the Convolution Matrix
-
     This function computes a convolution matrix that encodes
     the computation equivalent to ``numpy.convolve(x, y, mode)``
 
@@ -12,16 +12,16 @@ def convolution_matrix(x, N=None, mode='full'):
     x : array_like
         One-dimensional input array
     N : integer (optional)
-        Size of the array to be convolved. Default is len(x)
+        Size of the array to be convolved. Default is len(x).
     mode : {'full', 'valid', 'same'}, optional
-        The type of convolution to perform.
-        See ``np.convolve`` for details.
+        The type of convolution to perform. Default is 'full'.
+        See ``np.convolve`` documentation for details.
 
     Returns
     -------
     C : ndarray
         Matrix operator encoding the convolution. The matrix is of shape
-        Nout x N, where Nout depends on ``mode`` and the size of ``x``.
+        [Nout x N], where Nout depends on ``mode`` and the size of ``x``.
 
     Example
     -------
@@ -62,27 +62,3 @@ def convolution_matrix(x, N=None, mode='full'):
     n = np.arange(Nout)[:, np.newaxis]
     m = np.arange(N)
     return xpad[n - m + offset]
-
-
-#------------------------------------------------------------
-# Tests:
-import pytest
-from numpy.testing import assert_allclose
-
-
-@pytest.mark.parametrize('M', [10, 15, 20, 25])
-@pytest.mark.parametrize('N', [10, 15, 20, 25])
-@pytest.mark.parametrize('dtype', ['float', 'complex'])
-@pytest.mark.parametrize('mode', ['full', 'same', 'valid'])
-def test_convolution_matrix(M, N, dtype, mode):
-    rand = np.random.RandomState(42)
-    x = rand.rand(M)
-    y = rand.rand(N)
-
-    if dtype == 'complex':
-        x = x * np.exp(2j * np.pi * rand.rand(M))
-        y = y * np.exp(2j * np.pi * rand.rand(N))
-
-    result1 = np.dot(convolution_matrix(x, len(y), mode), y)
-    result2 = np.convolve(x, y, mode)
-    assert_allclose(result1, result2)
