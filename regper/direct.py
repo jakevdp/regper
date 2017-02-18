@@ -1,5 +1,7 @@
 """Direct deconvolution solvers"""
 
+import warnings
+
 import numpy as np
 from .utils import convolution_matrix
 
@@ -58,5 +60,9 @@ def deconvolution(w, y, gamma_L2=0.0, Nx=None, mode='full'):
     x : ndarray
         the length-Nx or [Nx x K] matrix representing the deconvolution
     """
+    if len(y) < Nx and gamma_L2 == 0:
+        warnings.warn("Ill-posed deconvolution: len(y)={0}, len(x)={1}. "
+                      "Try adding regularization or using a different "
+                      "mode of convolution".format(len(y), Nx))
     C = convolution_matrix(w, Nx, mode=mode)
     return least_squares(C, y, gamma_L2)

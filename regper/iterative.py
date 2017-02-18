@@ -61,7 +61,7 @@ def least_squares(A, y, gamma_L2=0, gamma_L1=0, method=None, method_kwds=None):
 
 
 def deconvolution(w, y, gamma_L2=0, gamma_L1=0, Nx=None,
-                  conv_method='FFT', mode='full',
+                  conv_method='matrix', mode='full',
                   method=None, method_kwds=None):
     """Iterative deconvolution using least squares
 
@@ -97,6 +97,13 @@ def deconvolution(w, y, gamma_L2=0, gamma_L1=0, Nx=None,
     w = np.asarray(w)
     Nx = len(w) if Nx is None else Nx
     Ny = convolution_output_size(len(w), Nx, mode=mode)
+    if len(y) != Ny:
+        raise ValueError("Array sizes do not match convolution mode")
+
+    if Ny < Nx and gamma_L2 == 0 and gamma_L1 == 0:
+        warnings.warn("Ill-posed deconvolution: len(y)={0}, len(x)={1}. "
+                      "Try adding regularization or using a different "
+                      "mode of convolution".format(Ny, Nx))
 
     if conv_method == 'matrix':
         C = convolution_matrix(w, Nx, mode=mode)
@@ -104,8 +111,14 @@ def deconvolution(w, y, gamma_L2=0, gamma_L1=0, Nx=None,
         C = LinearOperator((Ny, Nx), dtype=w.dtype,
                            matvec=lambda x: np.convolve(w, x, mode=mode))
     elif conv_method == 'fft':
-        C = LinearOperator((Ny, Nx), dtype=w.dtype,
-                           matvec=lambda x: signal.fftconvolve(w, x, mode=mode))
+        # Note: numpy.convolve does this switch internally
+        #       scipy fftconvolve raises an error in some cases
+        #       when the first argument is shorter than the second
+        if len(w) < Nx:
+            matvec = lambda x: signal.fftconvolve(x, w, mode=mode)
+        else:
+            matvec = lambda x: signal.fftconvolve(w, x, mode=mode)
+        C = LinearOperator((Ny, Nx), dtype=w.dtype, matvec=matvec)
     else:
         raise ValueError("conv_method must be in {'matrix', 'direct', 'fft'}")
 

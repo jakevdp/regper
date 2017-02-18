@@ -1,6 +1,6 @@
 import numpy as np
 from ..utils import least_squares_cost
-from ..direct import least_squares
+from ..direct import least_squares, deconvolution
 
 import pytest
 from numpy.testing import assert_allclose
@@ -23,6 +23,20 @@ def data(N=15, M=10, K=None, sigma=0.1, complex=False, rseed=53489):
     return A, x, y
 
 
+def conv_data(N=15, M=10, mode='full', sigma=0.1, complex=False, rseed=53489):
+    rand = np.random.RandomState(rseed)
+    w = rand.rand(N)
+    x = rand.randn(M)
+    if complex:
+        w = w + 1j * rand.randn(N)
+        x = x + 1j * rand.rand(M)
+    y = np.convolve(w, x, mode=mode)
+    y += sigma * rand.randn(*y.shape)
+    if complex:
+        y += 1j * sigma * rand.randn(*y.shape)
+    return w, x, y
+
+
 @pytest.mark.parametrize('complex', [True, False])
 @pytest.mark.parametrize('sigma', [0, 0.001, 0.1])
 @pytest.mark.parametrize('K', [None, 2])
@@ -36,7 +50,7 @@ def test_direct_unregularized(N, M, K, sigma, complex):
 
 @pytest.mark.parametrize('gamma_L2', [0.1, 1.0])
 @pytest.mark.parametrize('complex', [True, False])
-@pytest.mark.parametrize('sigma', [1E-1, 1E-2, 1E-3])
+@pytest.mark.parametrize('sigma', [0, 0.001, 0.1])
 @pytest.mark.parametrize('M', [10, 15])
 @pytest.mark.parametrize('N', [15])
 def test_direct_cost(N, M, sigma, complex, gamma_L2):
@@ -54,4 +68,18 @@ def test_direct_cost(N, M, sigma, complex, gamma_L2):
     assert np.all(cost_0 <= cost_perturbed)
 
 
-# TODO: test deconvolutions
+@pytest.mark.parametrize('complex', [True, False])
+@pytest.mark.parametrize('mode', ['full', 'valid', 'same'])
+@pytest.mark.parametrize('sigma', [0, 0.001, 0.1])
+@pytest.mark.parametrize('M', [10, 15])
+@pytest.mark.parametrize('N', [10, 15])
+def test_direct_deconvolution(N, M, sigma, mode, complex):
+    w, x, y = conv_data(N, M, mode=mode, complex=complex, sigma=sigma)
+    if len(y) < len(x):
+        with pytest.warns(UserWarning) as warning:
+            xfit = deconvolution(w, y, Nx=len(x), mode=mode)
+        assert len(warning) == 1
+        assert warning[0].message.args[0].startswith("Ill-posed deconvolution")
+    else:
+        xfit = deconvolution(w, y, Nx=len(x), mode=mode)
+        assert_allclose(x, xfit, atol=5 * N * sigma)
