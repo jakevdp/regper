@@ -52,3 +52,6 @@ def test_direct_cost(N, M, sigma, complex, gamma_L2):
     cost_perturbed = least_squares_cost(A, x_perturbed, y[:, None], gamma_L2)
 
     assert np.all(cost_0 <= cost_perturbed)
+
+
+# TODO: test deconvolutions

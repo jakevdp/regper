@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from scipy import sparse
 
 
 def convolution_output_size(N, M, mode):
@@ -78,8 +79,17 @@ def convolution_matrix(x, N=None, mode='full'):
     return x_padded[offset + n - m]
 
 
+def asanyoperator(A):
+    if isinstance(A, sparse.linalg.LinearOperator):
+        return A
+    elif sparse.issparse(A):
+        return A
+    else:
+        return np.asarray(A)
+
+
 def least_squares_cost(A, x, y, gamma_L2=0, gamma_L1=0):
-    """Cost function for least squares
+    """Cost function for (regularized) least squares
 
     returns ||A*x - y||^2 + gamma_L2 ||x||_2^2 + gamma_L1 ||x||_1
 
@@ -101,7 +111,11 @@ def least_squares_cost(A, x, y, gamma_L2=0, gamma_L1=0):
     cost : float or length-K array
         The value of the (regularized) cost function
     """
-    A, x, y = map(np.asarray, (A, x, y))
-    return ((abs(np.dot(A, x) - y) ** 2).sum(0)
+    A = asanyoperator(A)
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    Ax = np.asarray(A.dot(x))
+    return ((abs(Ax - y) ** 2).sum(0)
             + gamma_L2 * (abs(x) ** 2).sum(0)
             + gamma_L1 * abs(x).sum(0))
