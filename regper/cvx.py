@@ -4,7 +4,7 @@ from scipy.sparse import issparse
 import cvxpy as cvx
 
 
-def least_squares(A, y, gamma_L2=0, gamma_L1=0, method=None, method_kwds=None):
+def least_squares(A, y, gamma_L2=0, gamma_L1=0):
     """Iterative solution to a least squares problem
 
     Returns argmin_x ||A*x - y||^2 + gamma_L2 ||x||^2 + gamma_L1 ||x||_1
@@ -19,10 +19,6 @@ def least_squares(A, y, gamma_L2=0, gamma_L1=0, method=None, method_kwds=None):
         L2 regularization strength. Default=0
     gamma_L1 : float (optional)
         L1 regularization strength. Default=0
-    method : string (optional)
-        method to use (passed to ``scipy.optimize.minimize``)
-    method_kwds : dict (optional)
-        additional keywords passed to ``scipy.optimize.minimize``
 
     Returns
     -------

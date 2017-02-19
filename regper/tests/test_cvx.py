@@ -5,6 +5,12 @@ from ..cvx import least_squares
 import pytest
 from numpy.testing import assert_allclose
 
+from scipy.sparse import csr_matrix
+
+
+OPTYPES = {'array': np.asarray,
+           'sparse': csr_matrix}
+
 
 def data(N=15, M=10, K=None, sigma=0.1, complex=False, rseed=53489):
     rand = np.random.RandomState(rseed)
@@ -37,12 +43,14 @@ def conv_data(N=15, M=10, mode='full', sigma=0.1, complex=False, rseed=53489):
     return w, x, y
 
 
+@pytest.mark.parametrize('optype', ['array', 'sparse'])
 @pytest.mark.parametrize('complex', [True, False])
 @pytest.mark.parametrize('sigma', [0, 0.001, 0.1])
 @pytest.mark.parametrize('M', [10, 15])
 @pytest.mark.parametrize('N', [15])
-def test_cvx_unregularized(N, M, sigma, complex):
+def test_cvx_unregularized(N, M, sigma, complex, optype):
     A, x, y = data(N, M, complex=complex, sigma=sigma)
+    A = OPTYPES[optype](A)
     xfit = least_squares(A, y)
     assert_allclose(x, xfit, atol=5 * sigma)
 
@@ -54,8 +62,6 @@ def test_cvx_unregularized(N, M, sigma, complex):
 @pytest.mark.parametrize('M', [10, 15])
 @pytest.mark.parametrize('N', [15])
 def test_cvx_cost(N, M, sigma, complex, gamma_L1, gamma_L2):
-    rand = np.random.RandomState(543543)
-
     A, x, y = data(N, M, complex=complex, sigma=sigma)
     xfit = least_squares(A, y, gamma_L1=gamma_L1, gamma_L2=gamma_L2)
     cost_0 = least_squares_cost(A, xfit, y, gamma_L1=gamma_L1,
@@ -63,6 +69,7 @@ def test_cvx_cost(N, M, sigma, complex, gamma_L1, gamma_L2):
 
     # Make sure we've actually found a minimum
     # By sampling 10 points near the fit value
+    rand = np.random.RandomState(543543)
     x_perturbed = xfit[:, None] + 0.01 * rand.randn(xfit.shape[0], 10)
     cost_perturbed = least_squares_cost(A, x_perturbed, y[:, None],
                                         gamma_L1=gamma_L1,
@@ -76,7 +83,7 @@ def test_cvx_cost(N, M, sigma, complex, gamma_L1, gamma_L2):
 @pytest.mark.parametrize('sigma', [0])
 @pytest.mark.parametrize('M', [10, 15])
 @pytest.mark.parametrize('N', [10, 15])
-def _test_direct_deconvolution(N, M, sigma, mode, complex):
+def _test_cvx_deconvolution(N, M, sigma, mode, complex):
     w, x, y = conv_data(N, M, mode=mode, complex=complex, sigma=sigma)
     if len(y) < len(x):
         with pytest.warns(UserWarning) as warning:

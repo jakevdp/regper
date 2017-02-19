@@ -48,7 +48,7 @@ def test_direct_unregularized(N, M, K, sigma, complex):
     assert_allclose(x, xfit, atol=5 * sigma)
 
 
-@pytest.mark.parametrize('gamma_L2', [0.1, 1.0])
+@pytest.mark.parametrize('gamma_L2', [0, 1])
 @pytest.mark.parametrize('complex', [True, False])
 @pytest.mark.parametrize('sigma', [0, 0.001, 0.1])
 @pytest.mark.parametrize('M', [10, 15])
@@ -70,7 +70,7 @@ def test_direct_cost(N, M, sigma, complex, gamma_L2):
 
 @pytest.mark.parametrize('complex', [True, False])
 @pytest.mark.parametrize('mode', ['full', 'valid', 'same'])
-@pytest.mark.parametrize('sigma', [0, 0.001, 0.1])
+@pytest.mark.parametrize('sigma', [0])
 @pytest.mark.parametrize('M', [10, 15])
 @pytest.mark.parametrize('N', [10, 15])
 def test_direct_deconvolution(N, M, sigma, mode, complex):
@@ -82,4 +82,4 @@ def test_direct_deconvolution(N, M, sigma, mode, complex):
         assert warning[0].message.args[0].startswith("Ill-posed deconvolution")
     else:
         xfit = deconvolution(w, y, Nx=len(x), mode=mode)
-        assert_allclose(x, xfit, atol=5 * N * sigma)
+        assert_allclose(x, xfit)

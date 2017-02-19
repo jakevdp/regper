@@ -56,6 +56,29 @@ def test_iterative_unregularized(N, M, K, sigma, complex, optype):
     assert_allclose(x, xfit, atol=max(1E-5, 5 * sigma))
 
 
+@pytest.mark.parametrize('gamma_L2', [0, 1.0])
+@pytest.mark.parametrize('gamma_L1', [0, 1.0])
+@pytest.mark.parametrize('complex', [True, False])
+@pytest.mark.parametrize('sigma', [0, 0.001])
+@pytest.mark.parametrize('M', [4, 9])
+@pytest.mark.parametrize('N', [11])
+def test_iterative_cost(N, M, sigma, complex, gamma_L1, gamma_L2):
+    A, x, y = data(N, M, complex=complex, sigma=sigma)
+    xfit = iterative.least_squares(A, y, gamma_L1=gamma_L1, gamma_L2=gamma_L2)
+    cost_0 = iterative.least_squares_cost(A, xfit, y, gamma_L1=gamma_L1,
+                                          gamma_L2=gamma_L2)
+
+    # Make sure we've actually found a minimum
+    # By sampling 10 points near the fit value
+    rand = np.random.RandomState(543543)
+    x_perturbed = xfit[:, None] + 0.01 * rand.randn(xfit.shape[0], 10)
+    cost_perturbed = iterative.least_squares_cost(A, x_perturbed, y[:, None],
+                                                  gamma_L1=gamma_L1,
+                                                  gamma_L2=gamma_L2)
+
+    assert np.all(cost_0 <= cost_perturbed)
+
+
 @pytest.mark.parametrize('conv_method', ['fft', 'matrix', 'direct'])
 @pytest.mark.parametrize('complex', [True, False])
 @pytest.mark.parametrize('mode', ['full', 'valid', 'same'])
