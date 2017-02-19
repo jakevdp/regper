@@ -1,6 +1,6 @@
 import numpy as np
 from ..utils import least_squares_cost
-from ..cvx import least_squares
+from ..cvx import least_squares, deconvolution
 
 import pytest
 from numpy.testing import assert_allclose
@@ -78,18 +78,28 @@ def test_cvx_cost(N, M, sigma, complex, gamma_L1, gamma_L2):
     assert np.all(cost_0 <= cost_perturbed)
 
 
-@pytest.mark.parametrize('complex', [True, False])
+@pytest.mark.parametrize('complex', [False])
+@pytest.mark.parametrize('conv_method', ['direct', 'matrix'])
 @pytest.mark.parametrize('mode', ['full', 'valid', 'same'])
 @pytest.mark.parametrize('sigma', [0])
 @pytest.mark.parametrize('M', [10, 15])
 @pytest.mark.parametrize('N', [10, 15])
-def _test_cvx_deconvolution(N, M, sigma, mode, complex):
+def test_cvx_deconvolution(N, M, sigma, mode, conv_method, complex):
     w, x, y = conv_data(N, M, mode=mode, complex=complex, sigma=sigma)
-    if len(y) < len(x):
-        with pytest.warns(UserWarning) as warning:
-            xfit = deconvolution(w, y, Nx=len(x), mode=mode)
-        assert len(warning) == 1
-        assert warning[0].message.args[0].startswith("Ill-posed deconvolution")
+
+    args = (w, y)
+    kwargs = dict(Nx=len(x), mode=mode, conv_method=conv_method)
+
+    if conv_method == 'direct' and mode != 'full':
+        with pytest.raises(ValueError) as e_info:
+            xfit = deconvolution(*args, **kwargs)
+        assert str(e_info.value).startswith("Only mode='full'")
+    elif len(y) < len(x):
+        pass
+        #with pytest.warns(UserWarning) as warning:
+        #    xfit = deconvolution(*args, **kwargs)
+        #assert len(warning) == 1
+        #assert warning[0].message.args[0].startswith("Ill-posed deconvolution")
     else:
-        xfit = deconvolution(w, y, Nx=len(x), mode=mode)
+        xfit = deconvolution(*args, **kwargs)
         assert_allclose(x, xfit)
