@@ -83,24 +83,40 @@ def _direct_deconvolution(w, y, Nx, gamma_L2=0, gamma_L1=0):
     cplx = np.issubdtype(w.dtype, complex) or np.issubdtype(y.dtype, complex)
 
     if cplx:
-        raise NotImplementedError('complex inputs')
+        wr, wi = w.real, w.imag
+        yr, yi = y.real, y.imag
+
+        xr = cvx.Variable(Nx)
+        xi = cvx.Variable(Nx)
+
+        error = (cvx.sum_squares(cvx.conv(wr, xr) - cvx.conv(wi, xi) - yr) +
+                 cvx.sum_squares(cvx.conv(wi, xr) + cvx.conv(wr, xi) - yi))
+        u = cvx.norm(cvx.hstack(xr, xi), 2, axis=1)
     else:
         x = cvx.Variable(Nx)
         error = cvx.sum_squares(cvx.conv(w, x) - y)
-        cost = error
-        if gamma_L1 != 0:
-            gamma_L1 = cvx.Parameter(value=gamma_L1, sign="positive")
-            cost = cost + gamma_L1 * cvx.norm(x, 1)
-        if gamma_L2 != 0:
-            gamma_L2 = cvx.Parameter(value=gamma_L2, sign="positive")
-            cost = cost + gamma_L2 * cvx.sum_squares(x)
-        objective = cvx.Minimize(cost)
-        prob = cvx.Problem(objective)
+        u = x
 
+    cost = error
+
+    if gamma_L1 != 0:
+        gamma_L1 = cvx.Parameter(value=gamma_L1, sign="positive")
+        cost = cost + gamma_L1 * cvx.norm(x, 1)
+    if gamma_L2 != 0:
+        gamma_L2 = cvx.Parameter(value=gamma_L2, sign="positive")
+        cost = cost + gamma_L2 * cvx.sum_squares(x)
+
+    objective = cvx.Minimize(cost)
+    prob = cvx.Problem(objective)
     prob.solve()
     print("Problem Status: {0}".format(prob.status))
 
-    return np.asarray(x.value).ravel()
+    if cplx:
+        result = np.array(xr.value).ravel() + 1j * np.array(xi.value).ravel()
+    else:
+        result = np.asarray(x.value).ravel()
+
+    return result
 
 
 def deconvolution(w, y, gamma_L2=0, gamma_L1=0, Nx=None,

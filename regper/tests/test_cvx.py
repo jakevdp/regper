@@ -78,7 +78,7 @@ def test_cvx_cost(N, M, sigma, complex, gamma_L1, gamma_L2):
     assert np.all(cost_0 <= cost_perturbed)
 
 
-@pytest.mark.parametrize('complex', [False])
+@pytest.mark.parametrize('complex', [True, False])
 @pytest.mark.parametrize('conv_method', ['direct', 'matrix'])
 @pytest.mark.parametrize('mode', ['full', 'valid', 'same'])
 @pytest.mark.parametrize('sigma', [0])
@@ -95,7 +95,7 @@ def test_cvx_deconvolution(N, M, sigma, mode, conv_method, complex):
             xfit = deconvolution(*args, **kwargs)
         assert str(e_info.value).startswith("Only mode='full'")
     elif len(y) < len(x):
-        pass
+        xfit = deconvolution(*args, **kwargs)
         #with pytest.warns(UserWarning) as warning:
         #    xfit = deconvolution(*args, **kwargs)
         #assert len(warning) == 1
